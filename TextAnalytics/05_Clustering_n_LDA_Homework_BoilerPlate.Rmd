@@ -1,0 +1,168 @@
+---
+title: "Clustering and Topic Models Homework"
+author: "Dehlila Nguyen"
+date: '2023-06-02'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE, 
+                      warning = FALSE)
+```
+
+#### K-Means Clustering and LDA Topic Models are explained in the file 
+
+```{r 1. Load the required libraries}
+library(tidyverse)
+library(skmeans) # For running Spherical K-Means clustering 
+library(factoextra)
+library(fpc) # Plot clusters using a DTM matrix. Base plot style plotting 
+library(readxl)
+library(tm)
+library(stringr)
+library(tidytext)
+library(textcat)
+library(textmineR)
+```
+
+#### **Q1.** Plot the exploratory analysis graph using the iris dataset, Sepal.Length and Sepal.Width      
+**Output should resemble figure the one given in the markdown output**
+
+```{r 2. Explore iris dataset}
+# There are three different types of flowers in the iris dataset. Perform K-means clustering to fetch these three clusters clusters based on the rest of the properties. 
+print("Output should resemble figure the one given in the markdown output")
+```
+
+
+```{r expected output 1, echo=FALSE}
+ggplot(data = iris) + 
+  geom_point(aes(x = Sepal.Length, y = Sepal.Width, color = Species))
+```
+
+
+```{r 3. Perform K-Means clustering on iris dataset to extract three clusters}
+# Use the kmeans function from stats package to create the clusters. 
+# Use all the numeric fields expect cut
+print("Output should resemble figure the one given in the markdown output")
+```
+
+
+#### **Q2.** Perform K-Means clustering on iris dataset to extract three clusters. Create a clusters plot using fviz_cluster 
+**Output should resemble figure the one given in the markdown output**
+
+```{r expected output 2}
+
+```
+
+
+
+*Complete the below questions*
+- Add the clusters to the iris dataset, capture their frequency, and validate them against the true flower types. The output should look something like this (the numbers may not match exactly). Please explain how you interpreted the cluster outputs. Did the K-Means algorithm properly cluster the output?): 
+
+```{r expected output 3}
+
+```
+
+*Complete the below questions using the misinformation dataset*
+1. Read the misinformation dataset. 
+2. Text pre-processing steps: 
+  a. Use only English tweets 
+  b. Remove punctuation characters, special characters, numbers, strip whitespaces and remove stopwords 
+  c. Additionally, stem words (Use: function stemDocument. Please look at the help for more details)
+2. Use Spherical K-Means clustering to create 10 clusters and validate a few tweets from one of the cluster and provide interpretations if the clusters are meaningful. 
+3. Plot the clusters using plotcluster() function. 
+4. Also plot the cluster frequencies as bar plot. 
+
+```{r Read the misinformation tweets file}
+
+```
+
+*Complete the below questions using the misinformation dataset*
+1. Using the misinformation data, create a topic model and print the topics summary. 
+2. Create a dataframe of tweets and name it as misinformationTweets.
+3. misinformationTweets contains both the highly harmful and less harmful tweets 
+4. Use the CreateDtm function of textmineR package to create a dtm matrix. Make sure you pass the doc_names to identify each tweet as a single document. For this use, doc_names = rownames(<<misinformation dataset>>). Also, use the ngram_window = c(1, 2) option while creating DTM 
+5. Fit the LDA model model for the High-Harm tweets. Generate 15 topics and use 500 iterations while fitting the LDA topic model. Name the topic model you create as lda_misinformation_high. If you pass the argument calc_r2 = TRUE to the FitLdaModel, then you would be able to create the r2 value for the topic model. Print the r2 of the LDA model. You can print it usimg <<model>>$r2
+6. Plot the coherence histogram. Coherence value would have been calculated and stored in the lda_misinformation_high$coherence  
+7. Capture the top 15 terms for each topic into top_terms member of lda model object. Refer to the help documentation of the GetTopTerms function for more details. 
+8. Assigning the labels for each topic using the set of topic keywords is the most important task of topic modeling. The textmineR package provides a simple implementation of assigning the topic lables using the best N-grams with the highest theta value. Phi is the word probability distribution per topic and theta is the topic-level probability distribution over the documents. 
+
+Here in the below code, if the probability of a topic related for a particular tweet (one tweet out of all the documents) is less than 5% it is considered as not so useful and is given a zero probability. assignments variable/member of the lda_misinformation_high object holds the probable topic that the tweet is related to (probability using theta) within the 15 topics and assigns the corresponding labels.  
+
+```{r sample code-1, eval=F}
+# Assuming that you named the LDA model as lda_misinformation_high
+lda_misinformation_high$assignments[lda_misinformation_high$assignments < 0.05 ] <- 0
+lda_misinformation_high$labels <- LabelTopics(
+    assignments = lda_misinformation_high$assignments, 
+    dtm = dtm, # Assuming that you have created the dtm object as dtm 
+    M = 2)
+
+lda_misinformation_high$assignments[lda_misinformation_high$assignments < 0.05 ] <- 0
+
+lda_misinformation_high$assignments <- 
+    lda_misinformation_high$assignments / rowSums(lda_misinformation_high$assignments)
+
+lda_misinformation_high$assignments[ is.na(lda_misinformation_high$assignments) ] <- 0
+
+# Each tweet could have been representing multiple topic discussions as shown below
+#> head(lda_misinformation_high$assignments)
+#t_1      t_2      t_3 t_4 t_5 t_6 t_7 t_8 t_9 t_10 t_11 t_12 t_13 t_14 t_15
+#1   0 0.000000 1.000000   0   0   0   0   0   0    0    0    0    0    0    0
+#2   0 0.000000 0.000000   0   0   0   1   0   0    0    0    0    0    0    0
+#3   0 0.759434 0.240566   0   0   0   0   0   0    0    0    0    0    0    0
+#4   0 1.000000 0.000000   0   0   0   0   0   0    0    0    0    0    0    0
+#5   0 0.000000 0.000000   0   0   0   1   0   0    0    0    0    0    0    0
+#6   0 0.000000 0.000000   0   0   0   1   0   0    0    0    0    0    0    0
+
+# From the above output table, the third tweet is 76% about topic 2, while 24% 
+# about topic 3. While the first topic would be 100% related to topic 3. 
+
+# Number of documents in which each topic appears (Again remember, reach tweet  
+# might be related to more than 1 topic)
+lda_misinformation_high$num_docs <- colSums(lda_misinformation_high$assignments > 0)
+
+```
+
+9. Cluster topics together in a dendrogram. Calculate the Hellinger distance using CalcHellingerDist method and using the phi vectors (or the word probabilities of the topics). Perform Hierarchical clustering using hclust method and the linguistic distance. Calculated using the CalcHellingerDist method. Use the "ward.D" agglomerative clustering technique. Limit the number of clusters to 10 instead of 15 based on the hclust you have calculated earlier.
+
+```{r sample code-2, eval=F}
+lda_misinformation_high$hclust$clustering <- 
+    cutree(lda_misinformation_high$hclust, k = 10)
+```
+
+
+10. Create labels for the clusters. The code sample above created two set of labels using the LabelTopics function. You could combile these two labels into one as shown below code:
+
+
+```{r sample code-3, eval=F}
+
+
+lda_misinformation_high$hclust$labels <- 
+    paste(lda_misinformation_high$hclust$labels, lda_misinformation_high$labels[ , 1])
+
+```
+
+
+11. Plof the hclust of your model using plot function 
+
+
+12. Finally, make a summary table
+```{r sample code-4, eval=F}
+
+lda_misinformation_high$summary <- data.frame(topic     = rownames(lda_misinformation_high$phi),
+                                    cluster   = lda_misinformation_high$hclust$clustering,
+                                    lda_misinformation_high$labels,
+                                    coherence = lda_misinformation_high$coherence,
+                                    num_docs  = lda_misinformation_high$num_docs,
+                                    top_terms = apply(lda_misinformation_high$top_Terms, 2, function(x){
+                                        paste(x, collapse = ", ")
+                                    }),
+                                    stringsAsFactors = FALSE)
+```
+
+```{r sample code-5, eval=F}
+View(lda_misinformation_high$summary[ order(lda_misinformation_high$hclust$clustering) , ])
+
+```
+

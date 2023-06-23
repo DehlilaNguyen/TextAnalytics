@@ -1,0 +1,145 @@
+---
+title: "Introduction to Neutral Network"
+author: "DEHLILA NGUYEN"
+date: "2023-06-07"
+output: Github_document
+---
+
+```{r}
+library(neuralnet)
+```
+
+```{r}
+admissions <- read_csv(paste0(getwd(), "/Student_Admissions.csv"))
+```
+
+```{r}
+max_min_normalization <- function(input_x) {
+  input_x <- (input_x - min(input_x))/ (max(input_x) - min(input_x))
+  input_x
+}
+```
+
+```{r}
+#Create output collum as binary variable
+admissions$binary_output <- ifelse(admissions$Admit_Probability > 0.5,1,0)
+admissions_matrix <- apply(admissions[, c(-1, -9)],
+                           2,
+                           FUN = max_min_normalization)
+```
+
+```{r}
+set.seed(1234)
+training_rows <- sample(1:500,
+                        400)
+```
+
+```{r}
+train <- cbind(
+  admissions_matrix[training_rows,],
+  admissions[training_rows, "binary_output"])
+
+testing_rows <- c()
+for(i in 1:500) {
+  if (i %in% training_rows) {
+    next
+  }
+  testing_rows <- append(testing_rows, i)
+}
+
+test <- cbind(
+  admissions_matrix[testing_rows,],
+  admissions[testing_rows, "binary_output"])
+
+colnames(train) <- c("GRE", "Toefl", "UG_School_Rating", "SOP_Rating",
+                  "Recommendation_Strength", "CGPA", "Research_EXP",
+                  "binary_output")
+model <- neuralnet(binary_output ~.,
+                   data = train,
+                   hidden = 1,
+                   linear.output = F,
+                   err.fct = "ce"
+)
+
+
+```
+
+```{r}
+plot(model)
+```
+
+#Make Predictions
+```{r}
+test_outcome <- predict(model,
+                        test[, c(-8)])
+```
+
+#Convert outout predictionto binary outcome
+```{r}
+test_outcome <- ifelse(test_outcome > 0.5,
+                       1,0)
+
+table(test[, c(8)],
+      test_outcome)
+```
+
+
+#Continuous Value prediction (regression type of scenario)
+```{r}
+train <- cbind(
+  admissions_matrix[training_rows,],
+  admissions[training_rows, "Admit_Probability"])
+
+test <- cbind(
+  admissions_matrix[training_rows,],
+  admissions[training_rows, "Admit_Probability"])
+
+colnames(train) <- c("GRE", "Toefl", "UG_School_Rating", "SOP_Rating",
+                  "Recommendation_Strength", "CGPA", "Research_EXP",
+                  "Admit_Probability")
+model <- neuralnet(Admit_Probability ~.,
+                   data = train,
+                   hidden = 1,
+                   linear.output = T,
+                   err.fct = "sse"
+)
+train_outcome <- predict(model,
+                        train[, -8])
+test_outcome <- predict(model,
+                        test[, -8])
+```
+
+
+```{r}
+head(test_outcome)
+head(test[, 8])
+```
+
+
+```{r}
+test_MSE <- sum((test[, 8] - test_outcome)^2)/(100)
+train_MSE <- sum((train[, 8] - train_outcome)^2)/(100)
+print(paste(train_MSE, test_MSE))
+```
+
+```{r}
+MSE
+```
+
+```{r}
+model_lm <- glm(Admit_Probability ~.,
+                   data = as.data.frame(train))
+test_df <- as.data.frame(train[, c(-8)])
+predict_lm <- predict(model_lm, test_df)
+
+MSE <- sum((test[, 8] - predict_lm)^2)/(100 - 1)
+MSE
+summary(model_lm)
+```
+
+
+
+
+
+
+

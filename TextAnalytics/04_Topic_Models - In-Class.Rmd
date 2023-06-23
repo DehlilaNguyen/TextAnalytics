@@ -1,0 +1,194 @@
+---
+title: "04_Topic_Models"
+author: "Dehlila Nguyen"
+date: '2023-05-29'
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+#### Text Clustering and Topic Models 
+
+**Machine Learning - **
+- Machine learning focuses on creating algorithms and models that let computers learn and make predictions or judgments without having to be explicitly programmed. It is predicated on the notion that computers are capable of learning from and adapting to data, seeing patterns and making wise judgments or predictions.    
+
+- In conventional programming, programmers specifically specify the instructions in the code they produce to tell a computer how to carry out particular tasks. Machine learning, on the other hand, involves training a computer to recognize patterns and relationships in data by utilizing data as its training set. The machine learning algorithms may evaluate data and derive insightful patterns or insights using statistical methods, and then they can apply what they've learned to anticipate the future or take action when faced with new or unforeseen data.    
+
+Machine learning algorithms come in a variety of forms. Mainly supervised and unsupervised. 
+
+- Supervised learning: each input example has a corresponding output or target label, and the system is trained using labeled data. The algorithm picks up knowledge from these labeled samples to forecast or categorize brand-new data.
+- Unsupervised learning: The algorithm is given unlabeled data and is required to identify patterns or connections by itself. It gains the ability to identify hidden structures in the data or to group together comparable data points.     
+
+An unsupervised machine learning method used in information retrieval is document clustering. The goal of document clustering is to automatically organize a large collection of documents into meaningful clusters or categories without any prior knowledge or explicit labeling of the documents.
+
+Steps involved in document clustering include:       
+1. Text Pre-processing. Cleaning the data by removing unnecessary words such as stopwords, removing punctuation, removing numbers etc    
+2. Feature extraction: employing word frequencies, term frequencies-inverse document frequencies (TF-IDF), or word embeddings produced by algorithms like Word2Vec or GloVe to transform the text data into comprehensible numerical representations     
+3. Similarity Measurement: The similarity between documents based on their feature representations is assessed using a similarity metric, such as cosine similarity or Euclidean distance. The similarity metric calculates how similar two documents are on a quantitative level.       
+4. Running clustering algorithm: Based on their similarity scores, related papers are grouped together using a clustering method. K-means, hierarchical clustering, DBSCAN etc.       
+5. Evaluate and interpret: The resulting clusters are evaluated to assess their quality and coherence. Precision, Recall, and F-scores are used for benchmarking.      
+
+
+
+```{r 1. Include the required libraries}
+library(readxl)
+library(stringr)
+library(tidytext)
+library(tidyverse)
+library(tm)
+library(qdap)
+library(factoextra) # visualization - ggplot2-based visualizations 
+library(fpc) # Plot clusters using a DTM matrix. Base plot style plotting 
+library(cluster) # Required package to plot silhoutte plot 
+library(skmeans) # For running Spherical K-Means clustering 
+library(clue) # For running cluster prototypes. Cluster of words 
+library(wordcloud)
+```
+
+
+```{r 2. load the dataset}
+job_description <- indeed_job_details
+```
+
+```{r 3. basic text processing function for reusable code}
+text_pre_process <- function(corpus) {
+  corpus <- tm_map(corpus, tolower)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, stripWhitespace)
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeWords, stopwords(kind = "en"))
+  return(corpus)
+}
+
+```
+
+
+```{r 4. call_text_processing code}
+job_description$Description <- str_replace_all(job_description$Description, "\\r|\\n", " ")
+corpus <- Corpus(VectorSource(job_description$Description))
+corpus <- text_pre_process(corpus)
+requirements_tm_processed <- corpus$content
+requirements_tm_processed <- str_squish(requirements_tm_processed)
+requirements_tm_processed <- as.data.frame(requirements_tm_processed)
+names(requirements_tm_processed) <- c("job_requirements")
+```
+
+#### Perform K-means clustering 
+
+```{r 5. Perform kmeans clustering using the base stats package}
+# Step 1: Extract the corpus first (This is required, however, it is redundant because the text is processed for cleaning using the corpus.)
+corpus <- Corpus(VectorSource(requirements_tm_processed$job_requirements))
+
+# Step 2: Create a DocumentTermMatrix (DTM) using the corpus. 
+# Term Frequency - Inverse Document Frequency is used for creating the matrix. 
+# Hint: Look at the help documentation: ?DocumentTermMatrix
+dtm <- DocumentTermMatrix(corpus,
+                          control = list(weighting = 
+                                           function(x)
+                                             weightTfIdf(x, normalize = 
+                                                        FALSE))
+                          )
+
+# Step 3: run the kmeans function. You need to pass the number of clusters you want to create. 
+# pass 5 as input 
+skmeans_model <- skmeans(dtm, 
+                         method = "pclust",
+                         5,
+                         m = 1.2,
+                         control = list(nruns = 5, verbose = FALSE))
+
+# step 4 (Plotting output): created model "kmeans_model" has size element.It provides count of elements mapped to each cluster. Using this size, create a frequency bar plot. 
+barplot(table(skmeans_model$cluster))
+
+```
+
+
+```{r 6. Plot the clusters. It might not be of much help if all the documents are mapped to one cluster}
+fviz_cluster(skmeans_model, data = dtm)
+```
+
+
+```{r 6. Plot the clusters through distance measures. }
+plotcluster(dist(dtm, method = "euclidean"),
+            skmeans_model$cluster)
+```
+
+#### Silhouette analysis: 
+- Silhouette analysis can be used to study the separation distance between the resulting clusters. The silhouette plot displays a measure of how close each point in one cluster is to points in the neighboring clusters and thus provides a way to assess parameters like number of clusters visually. This measure has a range of [-1, 1].      
+
+- Silhouette coefficients (as these values are referred to as) near +1 indicate that the sample is far away from the neighboring clusters. A value of 0 indicates that the sample is on or very close to the decision boundary between two neighboring clusters and negative values indicate that those samples might have been assigned to the wrong cluster.      
+```{r 7. Silhouette-plot}
+euclidean_distance_matrix <- dist(dtm, 
+                       method = "euclidean")
+plot(silhouette(skmeans_model$cluster, 
+                euclidean_distance_matrix))
+```
+
+#### Most of the documents are mapped to a single cluster. It is time to extend the clustering approaches.
+- **Sperical K-Means Clustering (A cosine similarity based clustering method)
+
+```{r 8. Calculate Cosine Similarity between two feature vectors }
+features <- data.frame(measures = c("compassion", "fierce", "trust"), 
+                       King = c(2, 5, 2),
+                       Queen = c(4, 1, 5))
+feature_matrix <- as.matrix(features[, c(2,3)])
+
+# Similarity between King and Queen 
+cosine_similarity <- t(feature_matrix) %*% feature_matrix
+cosine_similarity
+
+# Similarity between "compassion", "fierce", "trust"
+cosine_similarity <- feature_matrix %*% t(feature_matrix)
+cosine_similarity
+```
+
+- Euclidian distance represents the length of a line segment between two points. A few high-frequency points influence the overall length. Also, sentences with more common keywords influences the distance. 
+- Cosine similarity - Cosine Similarity measures the cosine of the angle between two vectors in the space. It’s also a metric that is not affected by the frequency of the words being appeared in a document, and it is efficient for comparing different sizes of documents.
+
+```{r 9. Running Spherical K-Means clustering}
+# Step 1: Extract the corpus first (This is required, however, it is redundant because the text is processed for cleaning using the corpus.)
+
+# Step 2: Create a DocumentTermMatrix (DTM) using the corpus. 
+# Term Frequency - Inverse Document Frequency is used for creating the matrix. 
+# Hint: Look at the help documentation: ?DocumentTermMatrix
+
+# Step 3: run the Spherical K-Means function. The parameters required for running S K-Means are:
+# 1. Number of clusters. It is set to 5.
+# 2. Fuzziness (m) between cluster borders. It can be thought of as a border between clusters. How broad is the boarder that you want? Ranges from 1 and upwards. The higher the expected fuzziness the higher should be the value. Ideal value is 1.2 
+# 3. nrums. Numbers of times the parameters are to be estimated. 
+# 4. verbose to print or not to print the progress 
+# pass 5 as input 
+
+# Plot the barplot similar to previous one 
+```
+
+```{r 10. Plot the clusters using plotcluster}
+plotcluster(dist(dtm, method = "euclidean"),
+            kmeans_model$cluster)
+```
+
+
+```{r 11. Create a Silhoutte plot using skmeans_model}
+plot(silhouette(skmeans_model))
+```
+
+
+```{r 12. Create clusters of words and analyze the words based on the frequencies}
+# Clusters of words are called cluster prototypes 
+cluster_prototypes <- cl_prototypes(skmeans_model)
+cluster_prototypes <- t(cluster_prototypes)
+comparison.cloud(cluster_prototypes, max.words = 100)
+```
+
+
+```{r 13. Extract the top 5 keywords from each of the cluster}
+top_words <- sort(cluster_prototypes[,5], decreasing = T)[1:20]
+top_words <- as.data.frame(top_words)
+top_words <- data.frame(cluster1_words = row.names(top_words))
+top_words
+```
+
